@@ -157,27 +157,27 @@ button:hover{
   opacity:.7;
   pointer-events:none;
 }
-/* PWA INSTALL BUTTON - Sabit ve ekranın sağ üst köşesi */
-.install-btn {
-  display: none;         /* ilk başta gizli */
-  font-size: 22px;       /* ikon boyutu */
-  background: linear-gradient(135deg,#38bdf8,#6366f1);
-  color: #fff;
-  border: none;
-  border-radius: 50%;
-  width: 44px;
-  height: 44px;
-  padding: 0;
+.install-btn{
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  padding: 0;               /* padding sıfırlandı */
+  background: transparent;  /* arka plan kaldırıldı */
+  color: #38bdf8;           /* metin veya simge rengi */
+  font-size: 20px;          /* simgeyi büyüt */
+  font-weight: 700;
+  border: none;             /* border kaldırıldı */
   cursor: pointer;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.4);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.3s ease;
+  z-index: 999;
+  display: none;
+  box-shadow: none;          /* gölge kaldırıldı */
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+.install-btn:hover{
+  transform: scale(1.3);   /* hoverda büyüme efekti */
+  color: #22d3ee;          /* hover rengi */
 }
 
-.install-btn:hover {
-  transform: scale(1.1);
-  box-shadow: 0 10px 24px rgba(0,0,0,0.5);
-  background: linear-gradient(135deg,#22d3ee,#4f46e5);
-}
 
 </style>
 </head>
