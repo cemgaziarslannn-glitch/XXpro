@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Control Center</title>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<style>
+:root{
+  --bg:#060d14; --panel:#0b1a27; --card:#122536; --accent:#1abc9c;
+  --danger:#ff6b6b; --text:#eaf1f7; --muted:#8fa3b8; --border:#1f3447;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{font-family:Inter,system-ui,Arial; background:radial-gradient(circle at top,#0b1a27,#060d14); color:var(--text); min-height:100vh; display:flex; justify-content:center; padding:20px;}
+.app{max-width:1100px; width:100%; display:none; gap:20px; display:grid; grid-template-columns:1fr 2fr; grid-auto-rows:min-content;}
+.left-panel{display:flex; flex-direction:column; gap:18px;}
+.left-panel .section-title{font-size:16px; font-weight:600; margin-bottom:8px;}
+#projectList{background:var(--panel); border-radius:16px; padding:12px; max-height:400px; overflow-y:auto;}
+#projectList .project-item{padding:10px 12px; border-radius:12px; margin-bottom:8px; cursor:pointer; border:1px solid var(--border); transition:.2s;}
+#projectList .project-item:hover, #projectList .project-item.active{background:var(--accent); color:#001;}
+.right-panel{display:flex; flex-direction:column; gap:18px;}
+.project-card{background:var(--panel); border-radius:16px; padding:16px; display:grid; grid-template-columns:2fr 1fr auto; gap:10px; box-shadow:0 15px 40px rgba(0,0,0,.35);}
+.project-card input{padding:10px; border-radius:12px; border:1px solid var(--border); background:#081828; color:#fff;}
+.project-card button{border-radius:12px; padding:10px; font-weight:600; cursor:pointer;}
+.btn-main{background:var(--accent);color:#001;border:none;}
+.btn-main:hover{opacity:.85;}
+.btn-danger{background:#1a0f14;color:var(--danger);border:1px solid #3a1f2a;}
+.btn-danger:hover{background:var(--danger);color:#000;}
+.personnel-section{background:var(--panel); border-radius:16px; padding:16px;}
+.personnel-section .title{font-weight:600; font-size:16px; margin-bottom:10px;}
+.personnel-list{max-height:300px; overflow-y:auto;}
+.person{position:relative; background:var(--card); border-radius:14px; padding:12px 14px; margin-bottom:10px; border:1px solid var(--border);}
+.person b{font-weight:600;}
+.person span{font-size:12px;color:var(--muted);}
+.icon-btn{position:absolute; top:6px; right:6px; width:20px; height:20px; border:none; border-radius:50%; background:transparent; color:var(--danger); font-size:13px; line-height:20px; text-align:center; cursor:pointer; opacity:0.45; transition:.2s;}
+.icon-btn:hover{opacity:1; background:var(--danger); color:#000;}
+.add-personnel{display:flex; gap:10px; margin-top:10px;}
+.add-personnel input{flex:1; padding:10px; border-radius:12px; border:1px solid var(--border); background:#081828; color:#fff;}
+#pName {
+  text-transform: uppercase;
+}
+
+.add-personnel button{padding:10px 16px;}
+.menu-exit-btn{position:fixed; top:12px; right:12px; z-index:9999; width:40px; height:40px; border-radius:50%; font-size:20px; background:linear-gradient(135deg,#ff4d4d,#b30000); color:#fff; border:none; box-shadow:0 6px 18px rgba(255,0,0,.5); cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0;}
+/* Arama inputu */
+#personSearch {
+  background: #0c2033;       /* koyu-mavi */
+  color: #fff;               /* yazı beyaz */
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  font-size: 14px;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+}
+
+#personSearch::placeholder {
+  color: #8fa3b8;
+}
+
+#personSearch:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+  background: #0c2033; /* tıklayınca değişmesin */
+  color: #fff;
+}
+
+/* Arama butonu */
+#personSearchBtn {
+  background: var(--accent);  /* buton rengi */
+  color: #001;                /* yazı rengi koyu */
+  border: none;
+  padding: 12px 18px;
+  border-radius: 14px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: 0.25s;
+}
+
+#personSearchBtn:hover {
+  opacity: 0.85;
+}
+/* Modal butonlarını büyüt */
+#deleteModal .btn-danger,
+#deleteModal .btn-main {
+  padding: 14px 20px;    /* daha büyük */
+  font-size: 16px;       /* yazı büyütüldü */
+  border-radius: 16px;   /* köşeler hafif daha yuvarlak */
+  font-weight: 700;
+  transition: 0.2s;
+}
+
+#deleteModal .btn-danger:hover {
+  opacity: 0.9;
+}
+
+#deleteModal .btn-main:hover {
+  opacity: 0.9;
+}
+
+
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="left-panel">
+    <div class="section-title">Projeler</div>
+    <div id="projectList"></div>
+    <div class="section-title">Yeni Proje Ekle</div>
+    <div class="project-card">
+      <input id="projectName" placeholder="Proje adı">
+      <input id="projectCoords" placeholder="Enlem,Boylam">
+      <button class="btn-main" onclick="createProject()">Oluştur</button>
+    </div>
+  </div>
+  <div class="right-panel">
+  <!-- 🔍 TÜM PROJELERDE PERSONEL ARA -->
+<div class="personnel-section">
+  <div class="title">🔍 Personel Ara (Tüm Projeler)</div>
+
+  <!-- BURAYA YENİ INPUT + BUTON EKLENDİ -->
+  <div style="display:flex; gap:2%;">
+    <input id="personSearch" placeholder="TC veya Ad Soyad yazın"
+           style="flex:1; text-transform:uppercase;">
+    <button id="personSearchBtn" style="width:80px;">Ara</button>
+  </div>
+
+  <div id="personSearchResults" class="personnel-list"></div>
+</div>
+
+
+    <div class="project-card">
+      <input id="selectedProjectName" disabled>
+      <input id="selectedProjectCoords" placeholder="lat,lng">
+      <button class="btn-main" onclick="updateProjectLocation()">Kaydet</button>
+      <button class="btn-danger" onclick="deleteProject()">Sil</button>
+      <a href="https://www.google.com/maps" target="_blank" style="margin-left:10px; color:#1abc9c; font-weight:600; text-decoration:none;">Koordinat bul</a>
+    </div>
+<div class="personnel-section">
+  <div class="title">Personel Listesi</div>
+
+  <div id="personnelList" class="personnel-list"></div>
+
+  <div class="add-personnel">
+
+    <input id="pName" placeholder="Ad Soyad">
+
+    <div style="position:relative; flex:1;">
+      <input id="pTc"
+             placeholder="TC (11 hane)"
+             maxlength="11"
+             style="padding-right:50px;">
+      <div id="tcCounter"
+           style="position:absolute; right:12px; top:50%; transform:translateY(-50%);
+                  font-size:12px; color:#8fa3b8;">
+        0 / 11
+      </div>
+    </div>
+
+    <button class="btn-main" onclick="addPersonnel()">Ekle</button>
+  </div>
+
+<div id="appWarn" style="
+  display:none;
+  margin-top:12px;
+  padding:14px 40px 14px 16px;
+  border-radius:14px;
+  background:#2a0f14;
+  border:1px solid #ff6b6b;
+  color:#ffd6d6;
+  font-size:14px;
+  line-height:1.5;
+  position:relative;
+">
+  <span id="appWarnClose"
+        onclick="closeAppWarn()"
+        style="
+          position:absolute;
+          right:12px;
+          top:10px;
+          cursor:pointer;
+          font-size:18px;
+          opacity:.8;
+        ">✕</span>
+
+  <div id="appWarnText"></div>
+</div>
+
+
+  <div id="tcWarn" class="warn"></div>
+</div>
+
+<button class="menu-exit-btn" onclick="goMenu()">⎋</button>
+<!-- PERSONEL SİLME MODALI -->
+<div id="deleteModal" style="
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.65);
+  z-index:99999;
+  align-items:center;
+  justify-content:center;
+">
+
+  <div style="
+    background:#0b1a27;
+    border-radius:18px;
+    padding:22px;
+    width:100%;
+    max-width:420px;
+    border:1px solid #1f3447;
+    box-shadow:0 20px 60px rgba(0,0,0,.6);
+  ">
+
+    <h3 style="margin-bottom:10px;">Personel Silme</h3>
+
+    <div id="deleteModalText" style="
+      font-size:14px;
+      line-height:1.5;
+      color:#eaf1f7;
+      margin-bottom:18px;
+    "></div>
+
+    <div style="display:flex; gap:10px;">
+      <button class="btn-danger" style="flex:1;"
+        onclick="deletePersonnelCompletely()">
+        Personeli Tamamen Sil
+      </button>
+
+      <button class="btn-main" style="flex:1;"
+        onclick="removePersonnelFromProject()">
+        Sadece Projeden Sil
+      </button>
+    </div>
+
+    <button onclick="closeDeleteModal()" style="
+      margin-top:12px;
+      width:100%;
+      background:none;
+      border:none;
+      color:#8fa3b8;
+      cursor:pointer;
+    ">Vazgeç</button>
+
+  </div>
+</div>
+<!-- GENEL BİLDİRİ MODALİ -->
+<div id="notificationModal" style="
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.65);
+  z-index:99999;
+  align-items:center;
+  justify-content:center;
+  font-family:Inter,system-ui,Arial;
+">
+  <div style="
+    background:var(--panel);
+    border-radius:18px;
+    padding:24px 28px;
+    width:90%;
+    max-width:400px;
+    border:1px solid var(--border);
+    box-shadow:0 20px 60px rgba(0,0,0,0.6);
+    color:var(--text);
+    text-align:center;
+    position:relative;
+  ">
+    <div id="notificationModalText" style="margin-bottom:18px; font-size:14px; line-height:1.5;"></div>
+    <button onclick="closeNotificationModal()" style="
+      padding:10px 18px;
+      border:none;
+      border-radius:14px;
+      background:var(--accent);
+      color:#001;
+      font-weight:600;
+      cursor:pointer;
+    ">Tamam</button>
+    <span onclick="closeNotificationModal()" style="
+      position:absolute;
+      top:10px;
+      right:12px;
+      font-size:18px;
+      cursor:pointer;
+      color:#8fa3b8;
+    ">✕</span>
+  </div>
+</div>
+
+<script>
+// ANA FIREBASE
+firebase.initializeApp({
+  apiKey:"AIzaSyCye0QlekBFonTxfeBIlhLc9ia-mleyfUM",
+  authDomain:"denetleme-4d3d9.firebaseapp.com",
+  databaseURL:"https://denetleme-4d3d9-default-rtdb.firebaseio.com",
+  projectId:"denetleme-4d3d9"
+});
+const db=firebase.database();
+const auth=firebase.auth();
+
+// LOG FIREBASE
+const logApp = firebase.initializeApp({
+  apiKey: "AIzaSyACEapdJC_e5jlRbq8M09vl-iKlvmf5kh0",
+  authDomain: "logkayit-50d87.firebaseapp.com",
+  databaseURL: "https://logkayit-50d87-default-rtdb.firebaseio.com",
+  projectId: "logkayit-50d87"
+}, "logApp");
+const logDb = logApp.database();
+// 🔹 Türkçe karakterler için özel büyük harf fonksiyonu
+function toUpperCaseTR(str){
+  const letters = { 
+    'i': 'İ', 'ş': 'Ş', 'ç': 'Ç', 'ü': 'Ü', 'ö': 'Ö', 'ğ': 'Ğ', 'ı': 'I' 
+  };
+  return str.replace(/([iışçüöğı])/g, letter => letters[letter] || letter).toUpperCase();
+}
+
+// ELEMENTS
+const projectListDiv = document.getElementById("projectList");
+const projectName = document.getElementById("projectName");
+const projectCoords = document.getElementById("projectCoords");
+const selectedProjectName = document.getElementById("selectedProjectName");
+const selectedProjectCoords = document.getElementById("selectedProjectCoords");
+const personnelList = document.getElementById("personnelList");
+const pName = document.getElementById("pName");
+const pTc = document.getElementById("pTc");
+const tcWarn = document.getElementById("tcWarn");
+
+let activeProjectId = null;
+
+// LOG YAZMA
+function writeLog(type, action, details){
+  logDb.ref(`logs/${type}`).push({
+    action,
+    details,
+    user: auth.currentUser?.email || "unknown",
+    timestamp: Date.now()
+  });
+}
+function showAppWarn(message){
+  const warn = document.getElementById("appWarn");
+  warn.innerHTML = message;
+  warn.style.display = "block";
+}
+
+function hideAppWarn(){
+  const warn = document.getElementById("appWarn");
+  warn.style.display = "none";
+}
+
+// AUTH
+auth.onAuthStateChanged(user=>{
+  if(!user) location.replace("index.html");
+  else document.getElementById("app").style.display="grid";
+});
+
+// LOAD PROJECTS
+function loadProjects(){
+  projectListDiv.innerHTML="";
+  db.ref("projects").once("value",snap=>{
+    snap.forEach(c=>{
+      const div=document.createElement("div");
+      div.textContent=c.val().projectName;
+      div.className="project-item";
+      div.onclick=()=>selectProject(c.key,c.val().projectName,c.val().lat,c.val().lng,div);
+      projectListDiv.appendChild(div);
+    });
+  });
+}
+loadProjects();
+let deleteTc = null;
+let deletePersonData = null;
+
+// SELECT PROJECT
+function selectProject(pid,name,lat,lng,element){
+  activeProjectId = pid;
+  selectedProjectName.value = name;
+  selectedProjectCoords.value = (lat && lng)? `${lat},${lng}` : "";
+  Array.from(document.getElementsByClassName("project-item")).forEach(el=>el.classList.remove("active"));
+  element.classList.add("active");
+  loadPersonnel();
+}
+
+// CREATE PROJECT
+function createProject(){
+  const name = projectName.value.trim();
+  const coords = projectCoords.value.trim();
+  if(!name) return showNotification("Proje adı boş olamaz");
+  let lat=null,lng=null;
+  if(coords){
+    const parts = coords.split(",");
+    if(parts.length===2){lat=parseFloat(parts[0]); lng=parseFloat(parts[1]);}
+  }
+  const pid="PRJ_"+Date.now();
+  db.ref(`projects/${pid}`).set({projectName:name, lat:isNaN(lat)?null:lat, lng:isNaN(lng)?null:lng});
+  writeLog("projects","create",{projectId:pid, projectName:name, lat, lng});
+  projectName.value=""; projectCoords.value="";
+  loadProjects();
+}
+
+// UPDATE PROJECT LOCATION
+function updateProjectLocation(){
+  if(!activeProjectId) return showNotification("Proje seçin");
+  const coords = selectedProjectCoords.value.trim();
+  let lat=null,lng=null;
+  if(coords){
+    const parts = coords.split(",");
+    if(parts.length===2){lat=parseFloat(parts[0]); lng=parseFloat(parts[1]);}
+  }
+
+  db.ref(`projects/${activeProjectId}`).once("value",snap=>{
+    const projectName = snap.val()?.projectName || "Bilinmiyor";
+
+    // Veritabanını güncelle
+    db.ref(`projects/${activeProjectId}`).update({lat:isNaN(lat)?null:lat,lng:isNaN(lng)?null:lng});
+
+    // LOG
+    writeLog("projects","update-location",{projectId:activeProjectId, projectName, lat, lng});
+
+    return showNotification("Konum kaydedildi ✅");
+  });
+}
+function showNotification(msg){
+  const modal = document.getElementById("notificationModal");
+  const text = document.getElementById("notificationModalText");
+  text.innerHTML = msg;
+  modal.style.display = "flex";
+}
+
+function closeNotificationModal(){
+  const modal = document.getElementById("notificationModal");
+  modal.style.display = "none";
+}
+
+
+// DELETE PROJECT
+function deleteProject(){
+  if(!activeProjectId) return showNotification("Proje seçin");
+
+  // Proje silme modalını göster
+  showDeleteProjectModal();
+}
+
+function showDeleteProjectModal(){
+  const modal = document.createElement("div");
+  modal.id = "deleteProjectModal";
+  modal.style = `
+    position:fixed; inset:0; background:rgba(0,0,0,.65); display:flex; 
+    align-items:center; justify-content:center; z-index:99999;
+  `;
+  modal.innerHTML = `
+    <div style="background:#0b1a27; border-radius:18px; padding:22px; width:100%; max-width:400px; border:1px solid #1f3447;">
+      <h3 style="margin-bottom:10px;">Projeyi Sil</h3>
+      <p style="margin-bottom:18px;">Projeyi silmek istediğinize emin misiniz?</p>
+      <div style="display:flex; gap:10px;">
+        <button id="confirmDeleteProject" style="flex:1; padding:12px; border:none; border-radius:12px; background:#ff6b6b; color:#000; font-weight:600;">Sil</button>
+        <button id="cancelDeleteProject" style="flex:1; padding:12px; border:none; border-radius:12px; background:var(--accent); color:#001; font-weight:600;">Vazgeç</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  document.getElementById("confirmDeleteProject").onclick = () => {
+    db.ref(`projects/${activeProjectId}`).remove();
+    writeLog("projects","delete",{projectId:activeProjectId, projectName:selectedProjectName.value});
+    activeProjectId=null; selectedProjectName.value=""; selectedProjectCoords.value=""; personnelList.innerHTML="";
+    loadProjects();
+    modal.remove();
+    showNotification("Proje silindi ✅");
+  };
+
+  document.getElementById("cancelDeleteProject").onclick = () => {
+    modal.remove();
+  };
+}
+
+
+// LOAD PERSONNEL
+function loadPersonnel(){
+  if(!activeProjectId) return;
+  personnelList.innerHTML="";
+  db.ref(`projects/${activeProjectId}/personnel`).once("value",snap=>{
+    if(!snap.exists()){ personnelList.innerHTML='<div class="subtitle">Personel yok</div>'; return; }
+    snap.forEach(c=>{
+      db.ref(`personnel/${c.key}`).once("value",ps=>{
+        const p=ps.val();
+        personnelList.innerHTML+=`
+          <div class="person">
+            <b>${p.adSoyad}</b><br>
+            <span>${c.key}</span>
+            <button class="icon-btn" onclick="removePersonnel('${c.key}')">✕</button>
+          </div>`;
+      });
+    });
+  });
+}
+
+// ADD PERSONNEL
+// PERSONNEL EKLEME
+function addPersonnel(){
+  if(!activeProjectId) return showNotification("Proje seçin");
+
+const ad = toUpperCaseTR(pName.value.trim());
+
+
+  const tc = pTc.value.trim();
+
+  if(!ad || tc.length !== 11){
+    return showNotification("Ad ve TC eksik veya hatalı");
+  }
+
+  db.ref(`personnel/${tc}`).once("value", snap => {
+
+    // 🔍 PERSONEL VAR MI?
+    if(snap.exists()){
+      const data = snap.val();
+
+      // 🔴 1) ÖNCE AKTİF PROJEYE BAK
+if(data.project){
+  db.ref(`projects/${data.project}`).once("value", psnap => {
+    const projeAdi = psnap.val()?.projectName || "Bilinmeyen Proje";
+    const adSoyad = data.adSoyad || "Bilinmeyen Personel";
+
+    showAppWarn(`
+      <b>${tc}</b> TC numaralı <b>${adSoyad}</b>,<br>
+      <b>${projeAdi}</b> projesine kayıtlıdır.<br><br>
+      Başka bir projeye eklemek için lütfen önce mevcut projeden siliniz.
+    `);
+  });
+  return;
+}
+      // 🟡 2) AKTİF YOKSA ANA PROJEYE BAK
+if(data.projects){
+  const anaProjeId = Object.keys(data.projects)[0];
+
+  db.ref(`projects/${anaProjeId}`).once("value", psnap => {
+    const projeAdi = psnap.val()?.projectName || "Bilinmeyen Proje";
+    const adSoyad = data.adSoyad || "Bilinmeyen Personel";
+
+    showAppWarn(`
+      <b>${tc}</b> TC numaralı <b>${adSoyad}</b>,<br>
+      <b>${projeAdi}</b> projesine kayıtlıdır.<br><br>
+      Başka bir projeye eklemek için lütfen önce mevcut projeden siliniz.
+    `);
+  });
+  return;
+}
+
+
+    }
+
+    // 🟢 3) HİÇ YOK → İLK KEZ EKLENİYOR
+    db.ref(`projects/${activeProjectId}/personnel/${tc}`).set(true);
+
+    db.ref(`personnel/${tc}`).set({
+      tc: tc,
+      adSoyad: ad,
+      projects: {
+        [activeProjectId]: true
+      }
+    });
+
+    // LOG
+    db.ref(`projects/${activeProjectId}`).once("value", psnap => {
+      writeLog("personnel","add",{
+        adSoyad: ad,
+        tc: tc,
+        projectId: activeProjectId,
+        projectName: psnap.val().projectName
+      });
+    });
+hideAppWarn();
+    pName.value="";
+    pTc.value="";
+    loadPersonnel();
+  });
+}
+
+// PERSONNEL SİLME
+function removePersonnel(tc){
+  deleteTc = tc;
+
+  db.ref(`personnel/${tc}`).once("value", snap=>{
+    deletePersonData = snap.val();
+
+    if(!deletePersonData) return;
+
+    const ad = deletePersonData.adSoyad || "Bilinmeyen";
+    const modal = document.getElementById("deleteModal");
+    const text = document.getElementById("deleteModalText");
+
+    text.innerHTML = `
+      <b>${tc}</b> TC numaralı <b>${ad}</b> personel için işlem seçiniz.
+    `;
+
+    modal.style.display = "flex";
+  });
+}
+
+
+
+// MENU
+function goMenu(){ window.location.href="menü.html"; }
+const tcCounter = document.getElementById("tcCounter");
+
+pTc.oninput = () => {
+  // sadece rakam
+  pTc.value = pTc.value.replace(/\D/g, "");
+
+  // max 11
+  if(pTc.value.length > 11){
+    pTc.value = pTc.value.slice(0,11);
+  }
+
+  const len = pTc.value.length;
+
+  if(len === 11){
+    tcCounter.innerHTML = `11 / 11 ✔️`;
+    tcCounter.style.color = "#1abc9c";
+    tcWarn.textContent = "";
+  }else{
+    tcCounter.textContent = `${len} / 11`;
+    tcCounter.style.color = "#8fa3b8";
+    tcWarn.textContent = "";
+  }
+};
+
+let appWarnTimer = null;
+
+function showAppWarn(msg){
+  const box = document.getElementById("appWarn");
+  const text = document.getElementById("appWarnText");
+
+  text.innerHTML = msg;
+  box.style.display = "block";
+
+  // Önceki timer varsa temizle
+  if(appWarnTimer) clearTimeout(appWarnTimer);
+
+  // ⏳ 5 saniye sonra otomatik kapat
+  appWarnTimer = setTimeout(() => {
+    closeAppWarn();
+  },100000);
+}
+
+function closeAppWarn(){
+  const box = document.getElementById("appWarn");
+  box.style.display = "none";
+}
+function closeDeleteModal(){
+  document.getElementById("deleteModal").style.display = "none";
+  deleteTc = null;
+  deletePersonData = null;
+}
+function removePersonnelFromProject(){
+  if(!deleteTc || !activeProjectId) return;
+
+  db.ref(`projects/${activeProjectId}/personnel/${deleteTc}`).remove();
+  db.ref(`personnel/${deleteTc}/projects/${activeProjectId}`).remove();
+  db.ref(`personnel/${deleteTc}/project`).remove();
+
+writeLog("personnel","projeden-silindi",{
+
+    tc: deleteTc,
+    adSoyad: deletePersonData.adSoyad || "Bilinmiyor",
+    projectId: activeProjectId
+  });
+
+  closeDeleteModal();
+  loadPersonnel();
+}
+function deletePersonnelCompletely(){
+  if(!deleteTc || !deletePersonData) return;
+
+  if(deletePersonData.projects){
+    Object.keys(deletePersonData.projects).forEach(pid=>{
+      db.ref(`projects/${pid}/personnel/${deleteTc}`).remove();
+    });
+  }
+
+  db.ref(`personnel/${deleteTc}`).remove();
+
+  writeLog("personnel","remove",{
+    tc: deleteTc,
+    adSoyad: deletePersonData.adSoyad || "Bilinmiyor"
+  });
+
+  closeDeleteModal();
+  loadPersonnel();
+}
+const personSearchInput = document.getElementById("personSearch");
+const personSearchBtn = document.getElementById("personSearchBtn");
+const personSearchResults = document.getElementById("personSearchResults");
+
+// ENTER tuşu ile arama
+personSearchInput.addEventListener("keypress", (e) => {
+  if (e.key === "Enter") {
+    searchPersonnel();
+  }
+});
+
+// Buton ile arama
+personSearchBtn.addEventListener("click", searchPersonnel);
+
+// 🔹 Arama fonksiyonu
+function searchPersonnel() {
+  const q = toUpperCaseTR(personSearchInput.value.trim()); // her zaman büyük harf
+  personSearchResults.innerHTML = "";
+
+  if (q.length < 2) return;
+
+  db.ref("personnel").once("value", snap => {
+    let found = false;
+    const promises = [];
+
+    snap.forEach(p => {
+      const data = p.val();
+      const tc = data.tc || "";
+      const ad = toUpperCaseTR(data.adSoyad || "");
+
+      if(tc === q || ad === q){ // TC veya ad eşleşmesi
+        found = true;
+
+        const projectIds = [];
+        if(data.project) projectIds.push(data.project);
+        else if(data.projects) projectIds.push(...Object.keys(data.projects));
+
+        // Her kişi için Promise ekle
+        promises.push(
+          Promise.all(
+            projectIds.map(pid => db.ref(`projects/${pid}/projectName`).once("value"))
+          ).then(responses => {
+            const names = responses.map(r => r.val()).filter(Boolean).join(", ");
+
+            const div = document.createElement("div");
+            div.className = "person";
+            div.innerHTML = `
+              <b>${data.adSoyad || "?"}</b><br>
+              <span>TC: ${tc}</span><br>
+              <span>Telefon: ${data.telefon || "-"}</span><br>
+              <span>Kimlik: ${data.kimlikTuru || "-"}</span><br>
+              <span>Geçerlilik: ${data.kimlikGecerlilik || "-"}</span><br>
+              <span>Proje: ${names || "-"}</span>
+            `;
+            personSearchResults.appendChild(div);
+          })
+        );
+      }
+    });
+
+    Promise.all(promises).then(() => {
+      if(!found){
+        personSearchResults.innerHTML =
+          `<div class="person" style="opacity:.6">Sonuç yok</div>`;
+      }
+    });
+  });
+}
+
+</script>
+</body>
+</html>
